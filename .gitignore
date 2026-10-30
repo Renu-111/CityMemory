@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.env
+instance/
+*.db
+*.sqlite
+*.sqlite3
+.DS_Store
+.idea/
+.vscode/
+
+# Local uploads and backups
+private_uploads/
+backup_*/
+app_before_workorder_linking.py
+
+# Generated files
+__pycache__/
+venv/
+data/raw/*.csv

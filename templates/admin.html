@@ -1,0 +1,1687 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>CityMemory | Admin Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <style>
+    :root {
+      --bg: #17120F;
+      --panel: #211B17;
+      --panel-light: #29211C;
+      --border: #352B25;
+
+      --text: #F5EEE7;
+      --muted: #B7A99B;
+
+      --orange: #F16D70;
+      --orange-text: #FF9999;
+
+      --green: #43D98B;
+      --sky: #28CDBA;
+
+      --input: #211B17;
+
+      --eggplant: #422044;
+      --sky-hover: #60345F;
+      --sky-light: #352638;
+
+      --action: #FF781A;
+      --repeat: #F5C51B;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    header {
+      background: var(--panel);
+      color: var(--text);
+      padding: 16px 22px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--border);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 21px;
+      font-weight: 850;
+      letter-spacing: -1px;
+    }
+
+    header h1::before {
+      content: "";
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      background: var(--action);
+      border-radius: 3px;
+      margin-right: 9px;
+    }
+
+    header .tag {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    header .sp {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    button {
+      background: var(--action);
+      color: #211B17;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 9px 14px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: .18s ease;
+    }
+
+    button:hover:not(:disabled) {
+      filter: brightness(1.12);
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: .65;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    button.sec {
+      background: var(--panel-light);
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    button.ghost {
+      background: transparent;
+      color: var(--text);
+      border-color: var(--border);
+    }
+
+    button.ghost:hover {
+      background: rgba(255, 120, 26, .10);
+      border-color: var(--action);
+      color: var(--action);
+    }
+
+    button.sync-btn {
+      background: var(--action);
+      color: #211B17;
+      border-radius: 8px;
+      font-weight: 800;
+    }
+
+    button.logout-btn {
+      background: #42252B;
+      color: #FFC0B8;
+      border-color: #75404A;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      padding: 18px 20px 0;
+    }
+
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 15px;
+      min-height: 86px;
+      transition: border-color .2s, transform .2s;
+    }
+
+    .stat:hover {
+      border-color: var(--sky);
+      transform: translateY(-2px);
+    }
+
+    .stat b {
+      display: block;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -.7px;
+      color: var(--text);
+      overflow-wrap: anywhere;
+    }
+
+    .stat span {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .stat.chronic b,
+    .stat.cost b {
+      color: var(--orange);
+    }
+
+    .stat.info b {
+      color: var(--sky);
+    }
+
+    .stat.savings b {
+      color: var(--green);
+    }
+
+    .main {
+      min-height: 650px;
+      display: grid;
+      grid-template-columns: 330px minmax(300px, 1fr) 360px;
+      gap: 14px;
+      padding: 14px 20px 18px;
+    }
+
+    @media(max-width:1000px) {
+      .main {
+        grid-template-columns: 1fr;
+        grid-auto-rows: minmax(380px, auto);
+      }
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .panel h3 {
+      margin: 0;
+      padding: 15px 15px 10px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .scroll {
+      overflow: auto;
+      padding: 0 10px 10px;
+      flex: 1;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    #map {
+      flex: 1;
+      min-height: 360px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #1D1915;
+    }
+
+    .filters {
+      display: flex;
+      gap: 7px;
+      padding: 0 10px 10px;
+    }
+
+    select,
+    input[type=text],
+    textarea {
+      background: var(--input);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font: inherit;
+      outline: none;
+    }
+
+    select {
+      flex: 1;
+      padding: 9px;
+    }
+
+    select:focus,
+    input[type=text]:focus,
+    textarea:focus {
+      border-color: var(--sky);
+      box-shadow: 0 0 0 3px rgba(40, 205, 186, .15);
+    }
+
+    select option {
+      background: var(--panel);
+      color: var(--text);
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 11px;
+      border: 1px solid var(--border);
+      background: var(--input);
+      border-radius: 10px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: .18s ease;
+    }
+
+    .row:hover {
+      border-color: var(--sky);
+      background: rgba(40, 205, 186, .07);
+    }
+
+    .row.sel {
+      border-color: var(--sky);
+      background: rgba(40, 205, 186, .10);
+      box-shadow: inset 3px 0 var(--sky);
+    }
+
+    .row.chronic {
+      border-left: 4px solid var(--orange);
+    }
+
+    .row.chronic.sel {
+      box-shadow: inset 3px 0 var(--orange);
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex: none;
+    }
+
+    .row .t {
+      font-weight: 700;
+      font-size: 13px;
+      line-height: 1.35;
+      color: var(--text);
+    }
+
+    .row .s {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 9px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--bg);
+      letter-spacing: .3px;
+    }
+
+    .badge.chronic {
+      background: rgba(241, 109, 112, .18);
+      color: var(--orange-text);
+      border: 1px solid rgba(241, 109, 112, .35);
+    }
+
+    .badge.repeat {
+      background: rgba(245, 197, 27, .16);
+      color: var(--repeat);
+      border: 1px solid rgba(245, 197, 27, .35);
+    }
+
+    .badge.new {
+      background: rgba(67, 217, 139, .15);
+      color: var(--green);
+      border: 1px solid rgba(67, 217, 139, .3);
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+      padding: 0 14px 12px;
+    }
+
+    .kv div {
+      background: var(--input);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 11px;
+    }
+
+    .kv b {
+      display: block;
+      font-size: 17px;
+      color: var(--text);
+      margin-bottom: 3px;
+      overflow-wrap: anywhere;
+    }
+
+    .kv span {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .rec {
+      margin: 0 14px 12px;
+      padding: 12px;
+      border-radius: 9px;
+      background: rgba(67, 217, 139, .08);
+      border: 1px solid rgba(67, 217, 139, .30);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .rec b {
+      color: var(--green);
+    }
+
+    .tl {
+      padding: 0 14px 14px;
+    }
+
+    .ev {
+      position: relative;
+      padding: 0 0 14px 18px;
+      border-left: 2px solid var(--border);
+      margin-left: 6px;
+    }
+
+    .ev:before {
+      content: "";
+      position: absolute;
+      left: -6px;
+      top: 3px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--orange);
+    }
+
+    .ev.ok:before {
+      background: var(--green);
+    }
+
+    .ev .d {
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    .ev .x {
+      font-size: 12px;
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .ev .r {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    input[type=text],
+    textarea {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 9px;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: var(--muted);
+    }
+
+    .form {
+      padding: 0 14px 14px;
+    }
+
+    .msg {
+      margin: 0 14px 10px;
+      padding: 11px 13px;
+      border-radius: 9px;
+      font-size: 13px;
+    }
+
+    .msg.rep {
+      background: rgba(241, 109, 112, .10);
+      border: 1px solid rgba(241, 109, 112, .4);
+      color: var(--orange-text);
+    }
+
+    .msg.new {
+      background: rgba(67, 217, 139, .10);
+      border: 1px solid rgba(67, 217, 139, .4);
+      color: var(--green);
+    }
+
+    .note {
+      font-size: 12px;
+      color: var(--muted);
+      padding: 0 14px 10px;
+      line-height: 1.6;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 18px;
+      right: 18px;
+      background: var(--panel-light);
+      color: var(--text);
+      padding: 13px 17px;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--green);
+      border-radius: 10px;
+      max-width: 340px;
+      display: none;
+      z-index: 2000;
+    }
+
+    .photo-label {
+      display: block;
+      font-size: 12px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .photo-input-wrap {
+      position: relative;
+      margin-bottom: 8px;
+    }
+
+    .photo-input-wrap input[type=file] {
+      width: 100%;
+      padding: 9px;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      font: inherit;
+      background: var(--input);
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .photo-hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 9px;
+    }
+
+    .ev-photo {
+      margin-top: 7px;
+      max-width: 100%;
+      max-height: 160px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      object-fit: cover;
+      display: block;
+    }
+
+    .no-photo {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 5px;
+      font-style: italic;
+    }
+
+    .data-note {
+      padding: 8px 20px 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .logout-form {
+      margin: 0;
+    }
+
+    #citizenReportsPanel {
+      margin: 0 20px 20px;
+      scroll-margin-top: 15px;
+    }
+
+    .reports-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 0 14px 12px;
+    }
+
+    .reports-toolbar p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    #citizenReportsList {
+      padding: 0 14px 14px;
+    }
+
+    .citizen-report {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 10px;
+      background: var(--input);
+      transition: border-color .2s;
+    }
+
+    .citizen-report:hover {
+      border-color: var(--sky);
+    }
+
+    .citizen-report-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .reference-id {
+      color: var(--green);
+      font-size: 16px;
+      font-weight: 850;
+      letter-spacing: .3px;
+    }
+
+    .report-fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .report-field {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px;
+      overflow-wrap: anywhere;
+      color: var(--text);
+      font-size: 12px;
+    }
+
+    .report-field strong {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      letter-spacing: .5px;
+    }
+
+    .citizen-description {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      line-height: 1.6;
+      margin-top: 12px;
+      color: var(--text);
+    }
+
+    .citizen-photo {
+      display: block;
+      max-width: 240px;
+      max-height: 180px;
+      object-fit: cover;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      margin-top: 8px;
+    }
+
+    .photo-link {
+      display: inline-block;
+      margin-top: 7px;
+      color: var(--sky);
+    }
+
+    a {
+      color: var(--sky);
+    }
+
+    ::selection {
+      background: var(--sky);
+      color: var(--bg);
+    }
+
+    .legend {
+      margin: 10px 14px 14px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--input);
+    }
+
+    .legend-title {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      margin-bottom: 9px;
+    }
+
+    .legend-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--text);
+      font-size: 12px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex: none;
+    }
+
+    .legend-dot.orange {
+      background: var(--orange);
+    }
+
+    .legend-dot.sky {
+      background: var(--repeat);
+    }
+
+    .legend-dot.green {
+      background: var(--green);
+    }
+
+    .leaflet-control-zoom a {
+      background: var(--panel) !important;
+      color: var(--text) !important;
+      border-color: var(--border) !important;
+    }
+
+    .leaflet-control-attribution {
+      background: rgba(23, 18, 15, .92) !important;
+      color: var(--muted) !important;
+    }
+
+    .leaflet-control-attribution a {
+      color: var(--sky) !important;
+    }
+
+    @media(max-width:600px) {
+      header {
+        padding: 12px;
+      }
+
+      header .sp {
+        margin-left: 0;
+        width: 100%;
+      }
+
+      header .sp button,
+      header .sp form {
+        flex: 1;
+      }
+
+      header .sp button {
+        min-width: 0;
+      }
+
+      header .sp form button {
+        width: 100%;
+      }
+
+      .main {
+        padding: 12px;
+      }
+
+      .stats {
+        padding: 12px 12px 0;
+      }
+
+      #citizenReportsPanel {
+        margin: 0 12px 16px;
+      }
+
+      .data-note {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+    }
+
+    @media(max-width:1280px) {
+      .main {
+        grid-template-columns: 290px minmax(280px, 1fr) 320px;
+      }
+
+      .stat {
+        padding: 12px;
+      }
+    }
+
+    @media(max-width:1000px) {
+      .main {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <h1>CityMemory</h1>
+    <span class="tag">Admin dashboard · Civic infrastructure intelligence</span>
+
+    <span class="sp">
+      <button class="ghost" onclick="toggleReport()">Report a complaint</button>
+      <button class="ghost" onclick="showCitizenReports()">Citizen Reports</button>
+      <button class="sync-btn" id="syncBtn" onclick="syncBBMP()">Sync BBMP Data</button>
+      <button class="ghost" onclick="resetData()">Reset demo data</button>
+
+      <form class="logout-form" method="POST" action="/admin/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="logout-btn" type="submit">Logout</button>
+      </form>
+    </span>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="data-note">
+    Complaint clusters are inferred from reported locations, not verified physical asset IDs.
+    Financial figures are estimates based on complaint repair-cost data, not verified BBMP expenditure or savings.
+    Imported BBMP work orders are separate records and are not automatically linked to individual assets.
+  </div>
+
+  <div class="main">
+
+    <div class="panel">
+      <h3>Prioritise recurring problems</h3>
+
+      <div class="filters">
+        <select id="fcat" onchange="render()">
+          <option value="">All issue types</option>
+          <option value="pothole">Roads / potholes</option>
+          <option value="drainage">Drains</option>
+          <option value="streetlight">Streetlights</option>
+          <option value="footpath">Footpaths</option>
+        </select>
+
+        <select id="ftier" onchange="render()">
+          <option value="">All tiers</option>
+          <option>Chronic</option>
+          <option>Recurring</option>
+          <option>Watch</option>
+          <option>Isolated</option>
+        </select>
+      </div>
+
+      <div class="scroll" id="list"></div>
+    </div>
+
+    <div class="panel" style="padding:0">
+      <div id="map"></div>
+    </div>
+
+    <div class="panel">
+
+      <div id="detail" class="scroll" style="padding:0">
+        <h3>Asset history</h3>
+        <div class="note">
+          Select an inferred complaint cluster to inspect its reported history.
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-title">Dashboard colour guide</div>
+        <div class="legend-items">
+          <div class="legend-item"><span class="legend-dot orange"></span>Chronic</div>
+          <div class="legend-item"><span class="legend-dot sky"></span>Repeat</div>
+          <div class="legend-item"><span class="legend-dot green"></span>New / actions / savings</div>
+        </div>
+      </div>
+
+      <div id="report" class="hidden scroll" style="padding:0">
+        <h3>Record a complaint</h3>
+
+        <div class="note">
+          Click the map to set the location, or use the demo button.
+        </div>
+
+        <div class="form">
+          <input type="text" id="rtext" maxlength="2000" placeholder="Describe the problem">
+
+          <select id="rcat" style="width:100%;margin-bottom:8px">
+            <option value="pothole">Road / pothole</option>
+            <option value="drainage">Drain</option>
+            <option value="streetlight">Streetlight</option>
+            <option value="footpath">Footpath</option>
+          </select>
+
+          <select id="rsev" style="width:100%;margin-bottom:8px">
+            <option value="2">Severity 2 (minor)</option>
+            <option value="3" selected>Severity 3</option>
+            <option value="4">Severity 4</option>
+            <option value="5">Severity 5 (dangerous)</option>
+          </select>
+
+          <label class="photo-label" for="rphoto">Attach a photograph (optional)</label>
+
+          <div class="photo-input-wrap">
+            <input type="file" id="rphoto" name="photo" accept=".jpg,.jpeg,.png" onchange="onPhotoChange(this)">
+          </div>
+
+          <div class="photo-hint" id="rphoto-hint">JPG / JPEG / PNG · max 5 MB</div>
+          <div class="note" style="padding:0 0 8px" id="rloc">Location: not set</div>
+
+          <button id="complaintBtn" onclick="submitComplaint()">Submit complaint</button>
+          <button class="sec" onclick="fillDemo()">Fill demo complaint</button>
+        </div>
+
+        <div id="rmsg"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <section class="panel" id="citizenReportsPanel">
+    <h3>Citizen Reports</h3>
+
+    <div class="reports-toolbar">
+      <p>
+        Public complaints submitted through the CityMemory citizen page.
+        These are separate from imported BBMP work-order records.
+      </p>
+
+      <button class="sec" id="refreshReportsBtn" onclick="loadCitizenReports()">
+        Refresh reports
+      </button>
+    </div>
+
+    <div class="scroll" id="citizenReportsList">
+      <div class="note">Loading citizen reports...</div>
+    </div>
+  </section>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+    const $ = s => document.querySelector(s);
+
+    const inr = n =>
+      '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
+
+    const esc = s =>
+      String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[c]));
+
+    const colorFor = s =>
+      s >= 60 ? '#F16D70' :
+        s >= 40 ? '#F5C51B' :
+          s >= 25 ? '#43D98B' :
+            '#B7A99B';
+
+    const colorForTier = tier =>
+      tier === 'Chronic' ? '#F16D70' :
+        tier === 'Recurring' ? '#F5C51B' :
+          tier === 'Isolated' ? '#43D98B' :
+            '#28CDBA';
+
+    const ICON = {
+      pothole: 'Road',
+      drainage: 'Drain',
+      streetlight: 'Light',
+      footpath: 'Footpath'
+    };
+
+    const TIERCOL = {
+      Chronic: '#F16D70',
+      Recurring: '#F5C51B',
+      Watch: '#28CDBA',
+      Isolated: '#43D98B'
+    };
+
+    let map, layer;
+    let assets = [];
+    let cur = null;
+    let markers = {};
+    let pick = null;
+    let pickMarker = null;
+
+    function toast(message) {
+      const t = $('#toast');
+      t.textContent = message;
+      t.style.display = 'block';
+
+      clearTimeout(window.cityMemoryToastTimer);
+
+      window.cityMemoryToastTimer = setTimeout(() => {
+        t.style.display = 'none';
+      }, 5000);
+    }
+
+    async function readResponse(response) {
+      const data = await response.json().catch(() => ({}));
+
+      if (response.status === 401 || response.status === 403) {
+        toast('Your admin session may have expired. Please log in again.');
+
+        setTimeout(() => {
+          window.location.href = '/admin/login';
+        }, 1500);
+
+        throw new Error('Administrator login required.');
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || 'The request failed.');
+      }
+
+      return data;
+    }
+
+    async function adminPost(url) {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-CSRF-Token': csrfToken
+        }
+      });
+
+      return readResponse(response);
+    }
+
+    async function syncBBMP() {
+      const btn = $('#syncBtn');
+      const originalText = btn.textContent;
+
+      btn.disabled = true;
+      btn.textContent = 'Syncing BBMP...';
+
+      try {
+        toast('Connecting to BBMP data source...');
+        const data = await adminPost('/api/sync-bbmp');
+        toast(data.message || 'BBMP data synchronization completed successfully.');
+      } catch (error) {
+        console.error('BBMP sync error:', error);
+        toast('BBMP sync: ' + error.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
+
+    function initMap() {
+      map = L.map('map').setView([12.9716, 77.5946], 11);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+
+      layer = L.layerGroup().addTo(map);
+
+      map.on('click', e => {
+        if ($('#report').classList.contains('hidden')) return;
+        setPick(e.latlng.lat, e.latlng.lng);
+      });
+    }
+
+    function setPick(lat, lon) {
+      pick = { lat, lon };
+
+      if (pickMarker) map.removeLayer(pickMarker);
+
+      pickMarker = L.marker([lat, lon]).addTo(map);
+
+      $('#rloc').textContent =
+        'Location: ' + lat.toFixed(5) + ', ' + lon.toFixed(5);
+    }
+
+    async function loadAll() {
+      const [summaryResponse, assetsResponse] = await Promise.all([
+        fetch('/api/summary'),
+        fetch('/api/assets')
+      ]);
+
+      const s = await readResponse(summaryResponse);
+      const a = await readResponse(assetsResponse);
+
+      assets = a;
+
+      $('#stats').innerHTML = `
+        <div class="stat">
+          <b>${esc(s.total_complaints)}</b>
+          <span>complaints logged</span>
+        </div>
+
+        <div class="stat info">
+          <b>${esc(s.total_assets)}</b>
+          <span>inferred complaint clusters</span>
+        </div>
+
+        <div class="stat info">
+          <b>${esc(s.repeat_share_pct)}%</b>
+          <span>complaints classified as repeats</span>
+        </div>
+
+        <div class="stat chronic">
+          <b>${esc(s.chronic_assets)}</b>
+          <span>chronic complaint clusters (5+ reports)</span>
+        </div>
+
+        <div class="stat cost">
+          <b>${inr(s.total_wasted)}</b>
+          <span>estimated repeat-repair cost</span>
+        </div>
+
+        <div class="stat">
+          <b>${inr(s.top_n_annual_waste)}</b>
+          <span>projected annual cost estimate for top ${esc(s.top_n)} clusters</span>
+        </div>
+      `;
+
+      render();
+    }
+
+    function filtered() {
+      const c = $('#fcat').value;
+      const t = $('#ftier').value;
+
+      return assets.filter(a =>
+        (!c || a.category === c) &&
+        (!t || a.tier === t)
+      );
+    }
+
+    function render() {
+      const list = filtered();
+
+      $('#list').innerHTML = list.map(a => {
+        const tierColor = colorForTier(a.tier);
+        const tierClass =
+          a.tier === 'Chronic' ? 'chronic' :
+            a.tier === 'Recurring' ? 'repeat' :
+              a.tier === 'Isolated' ? 'new' : '';
+
+        return `
+          <div class="row ${a.id === cur ? 'sel' : ''} ${a.tier === 'Chronic' ? 'chronic' : ''}"
+               data-asset-id="${esc(a.id)}">
+
+            <div class="dot"
+                 style="background:${tierColor};border:2px solid ${tierColor};box-shadow:0 0 0 3px ${tierColor}30"></div>
+
+            <div style="flex:1">
+              <div class="t">${esc(a.title)}</div>
+              <div class="s">
+                ${esc(ICON[a.category] || a.category)}
+                &middot; ${esc(a.complaints)} reports
+                &middot; ${inr(a.wasted)} estimated repeat-repair cost
+              </div>
+            </div>
+
+            <span class="badge ${tierClass}"
+                  ${tierClass ? '' : `style="background:${tierColor};color:#211B17"`}>
+              ${esc(a.tier)}
+            </span>
+          </div>
+        `;
+      }).join('') || '<div class="note">No clusters match these filters.</div>';
+
+      document.querySelectorAll('.row[data-asset-id]').forEach(row => {
+        row.addEventListener('click', () => {
+          openAsset(row.dataset.assetId, true);
+        });
+      });
+
+      layer.clearLayers();
+      markers = {};
+
+      list.forEach(a => {
+        const markerColor = colorForTier(a.tier);
+
+        const m = L.circleMarker(
+          [a.lat, a.lon],
+          {
+            radius: 5 + Math.min(a.complaints, 9) * 1.4,
+            color: markerColor,
+            weight: 3,
+            fillColor: markerColor,
+            fillOpacity: 0.35
+          }
+        );
+
+        m.on('click', () => openAsset(a.id, false));
+        m.bindTooltip(`${esc(a.title)}<br>${a.complaints} reports`);
+        m.addTo(layer);
+        markers[a.id] = m;
+      });
+    }
+
+    async function openAsset(id, pan) {
+      cur = id;
+
+      $('#report').classList.add('hidden');
+      $('#detail').classList.remove('hidden');
+
+      try {
+        const response = await fetch('/api/asset/' + encodeURIComponent(id));
+        const a = await readResponse(response);
+
+        if (pan) map.setView([a.lat, a.lon], 16);
+
+        render();
+
+        const gapNote =
+          a.avg_gap_days != null ? `${a.avg_gap_days} days` : '-';
+
+        const tierClass =
+          a.tier === 'Chronic' ? 'chronic' :
+            a.tier === 'Recurring' ? 'repeat' :
+              a.tier === 'Isolated' ? 'new' : '';
+
+        $('#detail').innerHTML = `
+          <h3>Inferred complaint cluster · ${esc(a.id)}</h3>
+
+          <div style="padding:0 14px 8px">
+            <b>${esc(a.title)}</b>
+            <span class="badge ${tierClass}"
+                  ${tierClass ? '' : `style="background:${TIERCOL[a.tier] || '#B7A99B'};color:#211B17"`}>
+              ${esc(a.tier)}
+            </span>
+          </div>
+
+          <div class="kv">
+            <div>
+              <b>${esc(a.complaints)}</b>
+              <span>complaints since ${esc(a.first_reported)}</span>
+            </div>
+
+            <div>
+              <b>${inr(a.total_spent)}</b>
+              <span>estimated repair costs in complaint data</span>
+            </div>
+
+            <div>
+              <b style="color:var(--orange)">${inr(a.wasted)}</b>
+              <span>estimated repeat-repair cost</span>
+            </div>
+
+            <div>
+              <b>${inr(a.projected_annual_waste)}</b>
+              <span>projected annual cost estimate</span>
+            </div>
+
+            <div>
+              <b style="color:var(--sky)">${esc(gapNote)}</b>
+              <span>average gap between reported failures</span>
+            </div>
+
+            <div>
+              <b>${esc(a.score)}</b>
+              <span>priority score (0-100)</span>
+            </div>
+          </div>
+
+          <div class="rec">
+            <b>Suggested action:</b>
+            ${esc(a.recommendation)}
+          </div>
+
+          <div class="note">
+            These are inferred complaint clusters, not verified physical asset IDs.
+            Financial figures are estimates based on complaint data.
+          </div>
+
+          <h3>Related BBMP work orders</h3>
+
+<div class="tl">
+  ${(a.bbmp_work_orders || []).length
+            ? (a.bbmp_work_orders || []).map(w => `
+      <div class="ev">
+        <div class="d">
+          Work order: ${esc(w.work_order_id || "Not available")}
+          · Ward: ${esc(w.ward || "Not specified")}
+        </div>
+
+        <div class="x">${esc(w.work_description || "")}</div>
+
+        <div class="r">
+          Amount: ${inr(w.amount)}
+          · Net amount: ${inr(w.net_amount)}
+        </div>
+
+        <div class="d">
+          Similarity score: ${esc(w.similarity_score)}
+          · ${esc(w.match_type)}
+        </div>
+
+        <div class="d">
+          Bill reference: ${esc(w.bill_reference || "Not available")}
+        </div>
+      </div>
+    `).join("")
+            : '<div class="d">No potential BBMP work-order matches found.</div>'
+          }
+</div>
+
+<div class="d">
+  These are text-based suggestions only. They are not verified links
+  between BBMP work orders and physical assets.
+</div>
+
+          <h3>Complaint and repair timeline</h3>
+
+          <div class="tl">
+            ${(a.timeline || []).map(e => `
+              <div class="ev ${e.status === 'Open' ? '' : 'ok'}">
+                <div class="d">
+                  ${esc(e.date)} &middot; severity ${esc(e.severity)}
+                </div>
+
+                <div class="x">${esc(e.text)}</div>
+
+                <div class="r">
+                  ${e.status === 'Open'
+              ? 'Still open'
+              : `${esc(e.repair_action)} · ${inr(e.repair_cost)} (recorded estimate)`
+            }
+                </div>
+
+                ${e.photo_path
+              ? `<img class="ev-photo"
+                          src="${esc(e.photo_path)}"
+                          alt="Complaint photo"
+                          loading="lazy">`
+              : '<div class="no-photo">No photo attached</div>'
+            }
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+      } catch (error) {
+        console.error(error);
+        toast('Could not load asset history: ' + error.message);
+      }
+    }
+
+    function toggleReport() {
+      const r = $('#report');
+      const show = r.classList.contains('hidden');
+
+      r.classList.toggle('hidden', !show);
+      $('#detail').classList.toggle('hidden', show);
+      $('#rmsg').innerHTML = '';
+    }
+
+    function fillDemo() {
+      const top = assets[0];
+
+      if (!top) {
+        toast('No complaint clusters available yet.');
+        return;
+      }
+
+      setPick(top.lat + 0.00004, top.lon - 0.00003);
+      $('#rcat').value = top.category;
+
+      $('#rtext').value =
+        'Same problem again at the same spot, patched recently but already broken';
+
+      map.setView([top.lat, top.lon], 17);
+    }
+
+    function onPhotoChange(input) {
+      const hint = $('#rphoto-hint');
+
+      if (!input.files || !input.files[0]) {
+        hint.textContent = 'JPG / JPEG / PNG · max 5 MB';
+        hint.style.color = 'var(--muted)';
+        return;
+      }
+
+      const f = input.files[0];
+      const ext = f.name.split('.').pop().toLowerCase();
+
+      if (!['jpg', 'jpeg', 'png'].includes(ext)) {
+        hint.textContent = 'Only JPG, JPEG and PNG files are allowed.';
+        hint.style.color = 'var(--orange)';
+        input.value = '';
+        return;
+      }
+
+      if (f.size > 5 * 1024 * 1024) {
+        hint.textContent = 'File is too large (maximum 5 MB).';
+        hint.style.color = 'var(--orange)';
+        input.value = '';
+        return;
+      }
+
+      hint.textContent =
+        f.name + ' (' + (f.size / 1024).toFixed(0) + ' KB)';
+
+      hint.style.color = 'var(--green)';
+    }
+
+    async function submitComplaint() {
+      if (!pick) {
+        toast('Click the map to set a location first.');
+        return;
+      }
+
+      const description = $('#rtext').value.trim();
+
+      if (!description) {
+        toast('Please describe the complaint.');
+        return;
+      }
+
+      const fd = new FormData();
+
+      fd.append('text', description);
+      fd.append('category', $('#rcat').value);
+      fd.append('severity', $('#rsev').value);
+      fd.append('lat', pick.lat);
+      fd.append('lon', pick.lon);
+
+      const photoFile = $('#rphoto').files[0];
+
+      if (photoFile) fd.append('photo', photoFile);
+
+      const btn = $('#complaintBtn');
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+
+      try {
+        const response = await fetch('/api/complaint', {
+          method: 'POST',
+          body: fd
+        });
+
+        const data = await readResponse(response);
+
+        $('#rmsg').innerHTML = `
+          <div class="msg new">
+            <b>Complaint submitted successfully.</b><br>
+            Reference ID:
+            <strong>${esc(data.reference_id || 'Not returned')}</strong>
+          </div>
+        `;
+
+        $('#rtext').value = '';
+        $('#rphoto').value = '';
+        $('#rphoto-hint').textContent = 'JPG / JPEG / PNG · max 5 MB';
+        $('#rphoto-hint').style.color = 'var(--muted)';
+
+        pick = null;
+
+        if (pickMarker) {
+          map.removeLayer(pickMarker);
+          pickMarker = null;
+        }
+
+        $('#rloc').textContent = 'Location: not set';
+
+        await loadAll();
+        await loadCitizenReports();
+
+        toast('Complaint submitted successfully.');
+
+      } catch (error) {
+        console.error(error);
+        toast('Complaint submission failed: ' + error.message);
+
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit complaint';
+      }
+    }
+
+    function showCitizenReports() {
+      $('#citizenReportsPanel').scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+
+      loadCitizenReports();
+    }
+
+    function reportPhotoUrl(photoPath) {
+      if (!photoPath) return '';
+
+      const filename = String(photoPath).split(/[\\/]/).pop();
+
+      if (!filename || filename === '.' || filename === '..') {
+        return '';
+      }
+
+      return '/admin/photo/' + encodeURIComponent(filename);
+    }
+
+    async function loadCitizenReports() {
+      const container = $('#citizenReportsList');
+      const refreshButton = $('#refreshReportsBtn');
+
+      container.innerHTML =
+        '<div class="note">Loading citizen reports...</div>';
+
+      refreshButton.disabled = true;
+      refreshButton.textContent = 'Loading...';
+
+      try {
+        const response = await fetch('/api/reports', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          cache: 'no-store'
+        });
+
+        const reports = await readResponse(response);
+
+        if (!Array.isArray(reports)) {
+          throw new Error('Unexpected citizen reports response.');
+        }
+
+        if (reports.length === 0) {
+          container.innerHTML =
+            '<div class="note">No citizen reports have been submitted yet.</div>';
+          return;
+        }
+
+        container.innerHTML = reports.map(report => {
+          const photoUrl = reportPhotoUrl(report.photo_path);
+
+          const lat = Number(report.lat);
+          const lon = Number(report.lon);
+
+          const locationText =
+            Number.isFinite(lat) && Number.isFinite(lon)
+              ? lat.toFixed(6) + ', ' + lon.toFixed(6)
+              : 'Location unavailable';
+
+          const referenceId =
+            report.reference_id || ('CM-' + String(report.id).padStart(6, '0'));
+
+          const severityLabels = {
+            1: 'Low',
+            2: 'Medium',
+            3: 'High'
+          };
+
+          const severity =
+            severityLabels[Number(report.severity)] ||
+            String(report.severity ?? 'Not available');
+
+          const isOpen = report.status === 'Open';
+
+          return `
+            <article class="citizen-report">
+
+              <div class="citizen-report-top">
+                <span class="reference-id">${esc(referenceId)}</span>
+
+                <span class="badge ${isOpen ? 'chronic' : 'new'}">
+                  ${esc(report.status || 'Open')}
+                </span>
+              </div>
+
+              <div class="report-fields">
+                <div class="report-field">
+                  <strong>ISSUE CATEGORY</strong>
+                  ${esc(report.category || 'Not available')}
+                </div>
+
+                <div class="report-field">
+                  <strong>REPORTED DATE</strong>
+                  ${esc(report.reported_on || 'Not available')}
+                </div>
+
+                <div class="report-field">
+                  <strong>SEVERITY</strong>
+                  ${esc(severity)}
+                </div>
+
+                <div class="report-field">
+                  <strong>LOCATION COORDINATES</strong>
+                  ${esc(locationText)}
+                </div>
+              </div>
+
+              <div class="citizen-description">
+                <strong>Description</strong><br>
+                ${esc(report.text || 'No description provided.')}
+              </div>
+
+              ${photoUrl
+              ? `
+                  <div style="margin-top:12px">
+                    <strong>Citizen uploaded photo</strong>
+                    <a href="${esc(photoUrl)}"
+                       target="_blank"
+                       rel="noopener noreferrer">
+                      <img
+                        class="citizen-photo"
+                        src="${esc(photoUrl)}"
+                        alt="Photo attached to ${esc(referenceId)}"
+                        loading="lazy"
+                      >
+                    </a>
+                    <a class="photo-link"
+                       href="${esc(photoUrl)}"
+                       target="_blank"
+                       rel="noopener noreferrer">
+                      Open full photo
+                    </a>
+                  </div>
+                `
+              : '<div class="no-photo">No photo attached to this report.</div>'
+            }
+
+            </article>
+          `;
+        }).join('');
+
+      } catch (error) {
+        console.error('Citizen reports loading error:', error);
+
+        container.innerHTML = `
+          <div class="note" style="color:var(--orange)">
+            Could not load citizen reports: ${esc(error.message)}
+          </div>
+        `;
+
+      } finally {
+        refreshButton.disabled = false;
+        refreshButton.textContent = 'Refresh reports';
+      }
+    }
+
+    async function resetData() {
+      const confirmed = window.confirm(
+        'Reset simulated demo complaints? Imported BBMP work orders are protected.'
+      );
+
+      if (!confirmed) return;
+
+      try {
+        const data = await adminPost('/api/reset');
+
+        cur = null;
+
+        $('#detail').innerHTML = `
+          <h3>Asset history</h3>
+          <div class="note">
+            Select an inferred complaint cluster to inspect its history.
+          </div>
+        `;
+
+        await loadAll();
+        await loadCitizenReports();
+
+        toast(data.message || 'Demo data reset successfully.');
+
+      } catch (error) {
+        console.error(error);
+        toast('Reset: ' + error.message);
+      }
+    }
+
+    initMap();
+
+    loadAll().catch(error => {
+      console.error('Dashboard loading failed:', error);
+
+      if (!error.message.includes('Administrator login required.')) {
+        toast('Could not load dashboard: ' + error.message);
+      }
+    });
+
+    loadCitizenReports();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CityMemory | Admin Login</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: Arial, sans-serif;
+            background: #eef2f7;
+            color: #1e293b;
+        }
+
+        .login-card {
+            width: 90%;
+            max-width: 400px;
+            padding: 35px;
+            background: white;
+            border-radius: 14px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            color: #12345a;
+        }
+
+        .subtitle {
+            color: #64748b;
+            margin-bottom: 28px;
+        }
+
+        label {
+            display: block;
+            margin: 15px 0 7px;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            font-size: 15px;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 22px;
+            padding: 13px;
+            background: #155e9b;
+            color: white;
+            border: none;
+            border-radius: 7px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #104775;
+        }
+
+        .error {
+            padding: 10px;
+            background: #fee2e2;
+            color: #991b1b;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+
+        .back {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #155e9b;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="login-card">
+
+        <h1>CityMemory</h1>
+        <p class="subtitle">BBMP Administration Portal</p>
+
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('admin_login') }}">
+
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <label for="username">Admin Username</label>
+            <input type="text" id="username" name="username" required autocomplete="username">
+
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required autocomplete="current-password">
+
+            <button type="submit">Login to Admin Dashboard</button>
+
+        </form>
+
+        <a class="back" href="/">Back to Citizen Portal</a>
+
+    </div>
+
+</body>
+
+</html>

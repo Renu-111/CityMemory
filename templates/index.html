@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#596D7B">
+  <title>CityMemory | Report a Civic Issue</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <style>
+    :root {
+      --cream: #F4EBDD;
+      --ivory: #FFFCF6;
+      --beige: #E9DFD2;
+      --blue: #596D7B;
+      --blue-dark: #405767;
+      --blue-light: #E3EAF0;
+      --blue-pale: #F0F4F6;
+      --rose: #C6B6B0;
+      --rose-light: #F1E5E3;
+      --burgundy: #702D3B;
+      --burgundy-dark: #57212E;
+      --ink: #302F2A;
+      --muted: #77736D;
+      --line: #D8CEC1;
+      --success: #466B53;
+      --danger: #A64D42;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: var(--cream);
+      color: var(--ink);
+      line-height: 1.6;
+    }
+
+    header {
+      background: var(--blue);
+      color: var(--ivory);
+      padding: 35px 7%;
+      border-bottom: 6px solid var(--burgundy);
+    }
+
+    .header-content {
+      max-width: 1050px;
+      margin: auto;
+    }
+
+    .brand-label {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: #E8DAD7;
+      margin-bottom: 7px;
+    }
+
+    header h1 {
+      margin: 0 0 5px;
+      font-size: 34px;
+      letter-spacing: .4px;
+    }
+
+    header p {
+      margin: 0;
+      color: #E5EAED;
+      font-size: 14px;
+    }
+
+    main {
+      max-width: 780px;
+      margin: 45px auto;
+      padding: 0 18px;
+    }
+
+    .card {
+      background: var(--ivory);
+      padding: 36px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 15px 40px rgba(55, 62, 66, .10);
+    }
+
+    .intro-panel {
+      background: var(--rose-light);
+      border-left: 5px solid var(--burgundy);
+      border-radius: 11px;
+      padding: 20px 21px;
+      margin-bottom: 27px;
+    }
+
+    .eyebrow {
+      color: var(--burgundy);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    h2 {
+      margin: 0 0 8px;
+      font-size: 27px;
+      color: var(--ink);
+      letter-spacing: -.5px;
+    }
+
+    .intro {
+      margin: 0;
+      color: #625E59;
+      font-size: 14px;
+      max-width: 580px;
+    }
+
+    .section-heading {
+      margin: 0 0 8px;
+      color: var(--blue-dark);
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    label {
+      display: block;
+      font-weight: 700;
+      font-size: 14px;
+      margin: 20px 0 8px;
+      color: var(--blue-dark);
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      padding: 14px 15px;
+      border: 1.5px solid #CFC8BD;
+      border-radius: 10px;
+      background: #F6F2EB;
+      color: var(--ink);
+      font: inherit;
+      font-size: 14px;
+      transition: border-color .2s, box-shadow .2s, background .2s;
+    }
+
+    input:hover,
+    select:hover,
+    textarea:hover {
+      border-color: var(--blue);
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--burgundy);
+      background: #FFFFFF;
+      box-shadow: 0 0 0 3px rgba(112, 45, 59, .12);
+    }
+
+    textarea {
+      min-height: 125px;
+      resize: vertical;
+    }
+
+    textarea::placeholder {
+      color: #969087;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--line);
+      margin: 29px 0;
+    }
+
+    .location-section {
+      background: var(--blue-pale);
+      border: 1px solid #D1DCE3;
+      border-radius: 13px;
+      padding: 20px;
+      margin-top: 26px;
+    }
+
+    .location-section label {
+      margin-top: 0;
+      font-size: 16px;
+      color: var(--blue-dark);
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 5px 0 9px;
+    }
+
+    #map {
+      height: 310px;
+      border-radius: 11px;
+      margin-top: 12px;
+      border: 1px solid #C7D2D9;
+      z-index: 1;
+      overflow: hidden;
+    }
+
+    #locationStatus {
+      background: #DCE5EB;
+      color: var(--blue-dark);
+      border-radius: 8px;
+      padding: 11px 13px;
+      margin-top: 12px;
+      font-size: 13px;
+      border: 1px solid #C5D2DA;
+    }
+
+    input[type="file"] {
+      background: var(--rose-light);
+      border-color: #D9C9C5;
+      cursor: pointer;
+    }
+
+    input[type="file"]::file-selector-button {
+      border: 0;
+      border-radius: 7px;
+      background: var(--burgundy);
+      color: white;
+      padding: 9px 13px;
+      margin-right: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    #photoPreviewContainer {
+      display: none;
+      margin-top: 13px;
+      padding: 15px;
+      background: var(--rose-light);
+      border: 1px solid #D9C9C5;
+      border-radius: 11px;
+    }
+
+    #photoPreview {
+      display: block;
+      max-width: 100%;
+      max-height: 260px;
+      margin-top: 10px;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+
+    .submit-button {
+      border: 0;
+      border-radius: 10px;
+      padding: 16px 20px;
+      background: var(--burgundy);
+      color: white;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      margin-top: 27px;
+      width: 100%;
+      transition: background .2s, transform .2s, box-shadow .2s;
+      box-shadow: 0 6px 16px rgba(112, 45, 59, .20);
+    }
+
+    .submit-button:hover:not(:disabled) {
+      background: var(--burgundy-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 9px 20px rgba(112, 45, 59, .25);
+    }
+
+    .submit-button:disabled {
+      opacity: .6;
+      cursor: wait;
+      transform: none;
+    }
+
+    #message {
+      display: none;
+      padding: 18px;
+      border-radius: 11px;
+      margin-top: 20px;
+      line-height: 1.6;
+      overflow-wrap: anywhere;
+    }
+
+    .success {
+      display: block !important;
+      background: #E9F0E7;
+      color: var(--success);
+      border: 1px solid #CBD9C9;
+    }
+
+    .error {
+      display: block !important;
+      background: #F7EAE5;
+      color: var(--danger);
+      border: 1px solid #E8C9BF;
+    }
+
+    .reference-id {
+      display: block;
+      font-size: 27px;
+      font-weight: 800;
+      letter-spacing: 1.3px;
+      margin: 10px 0;
+      color: var(--burgundy);
+    }
+
+    .department-section {
+      margin-top: 32px;
+      padding: 23px;
+      background: var(--blue-light);
+      border: 1px solid #CBD5DC;
+      border-radius: 13px;
+      text-align: center;
+    }
+
+    .department-section p {
+      color: var(--blue-dark);
+      font-size: 13px;
+      margin: 0 0 10px;
+    }
+
+    .department-button {
+      display: inline-block;
+      width: 100%;
+      padding: 12px 20px;
+      background: var(--ivory);
+      color: var(--burgundy);
+      text-decoration: none;
+      border: 1px solid #C9B6B8;
+      border-radius: 9px;
+      font-weight: 700;
+      margin-top: 5px;
+      transition: background .2s, transform .2s;
+    }
+
+    .department-button:hover {
+      background: var(--rose-light);
+      transform: translateY(-1px);
+    }
+
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 25px 15px 30px;
+    }
+
+    footer span {
+      color: var(--burgundy);
+      font-weight: 800;
+    }
+
+    .leaflet-container {
+      font-family: Arial, sans-serif;
+    }
+
+    .leaflet-control-zoom {
+      border: 1px solid var(--line) !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .10) !important;
+    }
+
+    .leaflet-control-zoom a {
+      color: var(--burgundy) !important;
+      background: var(--ivory) !important;
+    }
+
+    .leaflet-control-zoom a:hover {
+      background: var(--blue-light) !important;
+    }
+
+    .leaflet-control-attribution {
+      background: rgba(255, 252, 246, .9) !important;
+    }
+
+    @media (max-width: 600px) {
+      header {
+        padding: 25px 20px;
+      }
+
+      header h1 {
+        font-size: 28px;
+      }
+
+      main {
+        margin: 25px auto;
+      }
+
+      .card {
+        padding: 22px 18px;
+      }
+
+      .intro-panel {
+        padding: 17px;
+      }
+
+      h2 {
+        font-size: 24px;
+      }
+
+      .location-section {
+        padding: 14px;
+      }
+
+      #map {
+        height: 265px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <div class="header-content">
+      <div class="brand-label">Civic memory · Bengaluru</div>
+      <h1>CityMemory</h1>
+      <p>Help Bengaluru remember and resolve recurring civic problems.</p>
+    </div>
+  </header>
+
+  <main>
+    <div class="card">
+
+      <div class="intro-panel">
+        <div class="eyebrow">Your voice matters</div>
+        <h2>Report a civic issue</h2>
+        <p class="intro">
+          Help make your neighbourhood better. Report a pothole, drainage issue,
+          streetlight problem or other infrastructure concern. No login required.
+        </p>
+      </div>
+
+      <form id="complaintForm">
+
+        <label for="category">Issue category</label>
+
+        <select id="category" name="category" required>
+          <option value="">Select a category</option>
+          <option value="Pothole">Pothole / damaged road</option>
+          <option value="Drainage">Drainage / waterlogging</option>
+          <option value="Streetlight">Streetlight</option>
+          <option value="Garbage">Garbage / waste</option>
+          <option value="Footpath">Footpath</option>
+          <option value="Other">Other</option>
+        </select>
+
+        <label for="text">Describe the problem</label>
+
+        <textarea id="text" name="text" maxlength="2000" required
+          placeholder="Describe the location and what needs attention..."></textarea>
+
+        <label for="severity">Severity</label>
+
+        <select id="severity" name="severity">
+          <option value="1">Low</option>
+          <option value="2" selected>Medium</option>
+          <option value="3">High</option>
+        </select>
+
+        <div class="location-section">
+          <label>Pin the issue location on the map</label>
+
+          <p class="hint">
+            Click the map to place a marker at the exact location of the issue.
+          </p>
+
+          <div id="map"></div>
+
+          <p class="hint" id="locationStatus">
+            Location not selected yet.
+          </p>
+        </div>
+
+        <label for="photo">Upload a photo (optional)</label>
+
+        <input id="photo" name="photo" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+
+        <p class="hint">JPG or PNG, maximum 5 MB.</p>
+
+        <div id="photoPreviewContainer">
+          <strong>Photo preview</strong>
+          <img id="photoPreview" alt="Selected complaint photo preview">
+        </div>
+
+        <button class="submit-button" id="submitButton" type="submit">
+          Submit complaint
+        </button>
+
+      </form>
+
+      <div id="message" role="status" aria-live="polite"></div>
+
+      <div class="department-section">
+        <p>Are you a BBMP or department administrator?</p>
+        <a class="department-button" href="/admin/login">
+          Department Login
+        </a>
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <span>CityMemory</span> · Civic infrastructure memory for Bengaluru
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // BENGALURU MAP
+
+    const map = L.map('map').setView([12.9716, 77.5946], 12);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let marker = null;
+    let latitude = null;
+    let longitude = null;
+
+    map.on('click', function (event) {
+      latitude = event.latlng.lat;
+      longitude = event.latlng.lng;
+
+      if (marker) {
+        map.removeLayer(marker);
+      }
+
+      marker = L.marker(event.latlng).addTo(map);
+
+      document.getElementById('locationStatus').textContent =
+        'Selected location: ' +
+        latitude.toFixed(6) + ', ' +
+        longitude.toFixed(6);
+    });
+
+    // FORM ELEMENTS
+
+    const form = document.getElementById('complaintForm');
+    const message = document.getElementById('message');
+    const submitButton = document.getElementById('submitButton');
+
+    const photoInput = document.getElementById('photo');
+    const photoPreviewContainer =
+      document.getElementById('photoPreviewContainer');
+    const photoPreview = document.getElementById('photoPreview');
+
+    let photoPreviewURL = null;
+
+    // PHOTO PREVIEW
+
+    photoInput.addEventListener('change', function () {
+      const photo = photoInput.files[0];
+
+      if (photoPreviewURL) {
+        URL.revokeObjectURL(photoPreviewURL);
+        photoPreviewURL = null;
+      }
+
+      photoPreviewContainer.style.display = 'none';
+      photoPreview.removeAttribute('src');
+
+      if (!photo) {
+        return;
+      }
+
+      if (!['image/jpeg', 'image/png'].includes(photo.type)) {
+        showMessage('Please select a JPG or PNG image.', 'error');
+        photoInput.value = '';
+        return;
+      }
+
+      if (photo.size > 5 * 1024 * 1024) {
+        showMessage('Photo must be smaller than 5 MB.', 'error');
+        photoInput.value = '';
+        return;
+      }
+
+      photoPreviewURL = URL.createObjectURL(photo);
+      photoPreview.src = photoPreviewURL;
+      photoPreviewContainer.style.display = 'block';
+
+      message.style.display = 'none';
+      message.className = '';
+    });
+
+    // MESSAGE DISPLAY
+
+    function showMessage(text, type) {
+      message.textContent = text;
+      message.className = type;
+      message.style.display = 'block';
+    }
+
+    // SUBMIT COMPLAINT
+
+    form.addEventListener('submit', async function (event) {
+      event.preventDefault();
+
+      message.className = '';
+      message.style.display = 'none';
+
+      if (latitude === null || longitude === null) {
+        showMessage(
+          'Please click the map to select the issue location.',
+          'error'
+        );
+        return;
+      }
+
+      const photo = photoInput.files[0];
+
+      if (photo && photo.size > 5 * 1024 * 1024) {
+        showMessage('Photo must be smaller than 5 MB.', 'error');
+        return;
+      }
+
+      if (photo && !['image/jpeg', 'image/png'].includes(photo.type)) {
+        showMessage('Please upload a JPG or PNG image.', 'error');
+        return;
+      }
+
+      const data = new FormData(form);
+      data.append('lat', latitude);
+      data.append('lon', longitude);
+
+      submitButton.disabled = true;
+      submitButton.textContent = 'Submitting...';
+
+      try {
+        const response = await fetch('/api/complaint', {
+          method: 'POST',
+          body: data
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            result.error || 'Could not submit complaint.'
+          );
+        }
+
+        if (!result.reference_id) {
+          throw new Error(
+            'Complaint was received, but the server did not return a reference ID. Please contact the administrator.'
+          );
+        }
+
+        message.innerHTML = '';
+
+        const heading = document.createElement('strong');
+        heading.textContent = 'Complaint submitted successfully!';
+
+        const explanation = document.createElement('p');
+        explanation.textContent =
+          'Thank you for helping Bengaluru build a history of civic infrastructure issues. Please save your reference ID to check with the department.';
+
+        const reference = document.createElement('span');
+        reference.className = 'reference-id';
+        reference.textContent = result.reference_id;
+
+        const reminder = document.createElement('small');
+        reminder.textContent =
+          'Keep this reference ID safe for future follow-up.';
+
+        message.appendChild(heading);
+        message.appendChild(explanation);
+        message.appendChild(reference);
+        message.appendChild(reminder);
+
+        message.className = 'success';
+        message.style.display = 'block';
+
+        // RESET FORM AFTER SUCCESS
+
+        form.reset();
+
+        if (photoPreviewURL) {
+          URL.revokeObjectURL(photoPreviewURL);
+          photoPreviewURL = null;
+        }
+
+        photoPreview.removeAttribute('src');
+        photoPreviewContainer.style.display = 'none';
+
+        if (marker) {
+          map.removeLayer(marker);
+        }
+
+        marker = null;
+        latitude = null;
+        longitude = null;
+
+        document.getElementById('locationStatus').textContent =
+          'Location not selected yet.';
+
+      } catch (error) {
+        showMessage(
+          error.message || 'Something went wrong. Please try again.',
+          'error'
+        );
+
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Submit complaint';
+      }
+    });
+  </script>
+
+</body>
+
+</html>
