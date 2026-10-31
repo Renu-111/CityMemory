@@ -19,7 +19,59 @@ import generate_data
 import bbmp_sync
 
 
-app = Flask(__name__)
+from urllib.parse import urlparse
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app = Flask(
+    __name__,
+    static_folder=os.path.join(BASE_DIR, "static"),
+    template_folder=os.path.join(BASE_DIR, "templates")
+)
+
+
+# ---------------------------------------------------------------------------
+# VERCEL SERVERLESS PATH FIXER MIDDLEWARE
+# ---------------------------------------------------------------------------
+
+class VercelPathFixerMiddleware:
+    """
+    Ensure correct WSGI PATH_INFO on Vercel serverless deployments.
+    Restores the original requested path from Vercel edge headers
+    (HTTP_X_MATCHED_PATH, HTTP_X_FORWARDED_URI, REQUEST_URI)
+    if the path was rewritten to /app.py or /app.
+    """
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        path_info = environ.get("PATH_INFO", "")
+        matched_path = (
+            environ.get("HTTP_X_MATCHED_PATH")
+            or environ.get("HTTP_X_FORWARDED_URI")
+        )
+
+        if not matched_path:
+            raw_uri = environ.get("REQUEST_URI") or environ.get("RAW_URI")
+            if raw_uri:
+                matched_path = urlparse(raw_uri).path
+
+        if matched_path:
+            clean_path = urlparse(matched_path).path
+            if clean_path in ("/app.py", "/app"):
+                environ["PATH_INFO"] = "/app.py"
+            elif path_info in ("/app.py", "/app", "/api", "/api/index", "/api/index.py") or not path_info:
+                environ["PATH_INFO"] = clean_path or "/"
+            elif clean_path and path_info != clean_path:
+                environ["PATH_INFO"] = clean_path
+        elif environ.get("PATH_INFO") in ("/app.py", "/app"):
+            environ["PATH_INFO"] = "/"
+
+        return self.wsgi_app(environ, start_response)
+
+
+app.wsgi_app = VercelPathFixerMiddleware(app.wsgi_app)
+
 
 # ---------------------------------------------------------------------------
 # SECURITY CONFIGURATION
@@ -49,8 +101,6 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=1800,
     MAX_CONTENT_LENGTH=6 * 1024 * 1024
 )
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def _get_upload_folder():
@@ -439,6 +489,17 @@ def _normalize_category(value):
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/app.py")
+def redirect_app_py():
+    """Prevent showing /app.py as a browser page; redirect directly to root."""
+    return redirect(url_for("index"), code=301)
+
+
+@app.route("/favicon.ico")
+def favicon():
+    return ("", 204)
 
 
 # ---------------------------------------------------------------------------
