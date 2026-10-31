@@ -53,11 +53,20 @@ def text_similarity(query, docs):
 
 
 def load_complaints(db_path):
+    if not db_path or not os.path.exists(db_path):
+        return []
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
-    rows = [dict(r) for r in con.execute("SELECT * FROM complaints ORDER BY id")]
-    con.close()
-    return rows
+    try:
+        table_exists = con.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='complaints'"
+        ).fetchone()
+        if not table_exists:
+            return []
+        rows = [dict(r) for r in con.execute("SELECT * FROM complaints ORDER BY id")]
+        return rows
+    finally:
+        con.close()
 
 
 def dist_m(lat1, lon1, lat2, lon2):

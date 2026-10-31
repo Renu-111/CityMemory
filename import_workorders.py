@@ -1,21 +1,46 @@
-
 import csv
 import hashlib
 import html
 import json
+import os
 import re
 import shutil
 import sqlite3
+import tempfile
 from pathlib import Path
 from datetime import datetime
 
 import generate_data
 
-
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = Path(generate_data.DB_PATH)
 
-CSV_PATH = BASE_DIR / "data" / "raw" / "bbmp_2025_26_243_wards.csv"
+
+def get_db_path():
+    return Path(generate_data.get_db_path())
+
+
+DB_PATH = get_db_path()
+
+
+def get_csv_path():
+    custom = os.environ.get("BBMP_CSV_PATH")
+    if custom:
+        return Path(custom)
+    default_csv = BASE_DIR / "data" / "raw" / "bbmp_2025_26_243_wards.csv"
+    if default_csv.exists():
+        return default_csv
+    is_serverless = bool(
+        os.environ.get("VERCEL")
+        or os.environ.get("VERCEL_ENV")
+        or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+    )
+    if is_serverless or not os.access(str(BASE_DIR), os.W_OK):
+        tmp_dir = Path(tempfile.gettempdir()) / "citymemory_data"
+        return tmp_dir / "bbmp_2025_26_243_wards.csv"
+    return default_csv
+
+
+CSV_PATH = get_csv_path()
 
 SOURCE_DATASET = "BBMP Work Orders 2025-26 - 243 Wards"
 SOURCE_RESOURCE_ID = "6c2e5dfa-845c-440d-808c-3ed45b083059"
@@ -62,27 +87,39 @@ def create_table(connection):
     """)
 
 
-def import_work_orders():
-    if not CSV_PATH.exists():
-        print("CSV file not found:", CSV_PATH)
+def import_work_orders(csv_path=None, db_path=None):
+    if csv_path is None:
+        csv_path = get_csv_path()
+    else:
+        csv_path = Path(csv_path)
+
+    if db_path is None:
+        db_path = get_db_path()
+    else:
+        db_path = Path(db_path)
+
+    if not csv_path.exists():
+        print("CSV file not found:", csv_path)
         return
 
-    if not DB_PATH.exists():
-        print("CityMemory database not found:", DB_PATH)
-        return
+    if not db_path.exists():
+        print("CityMemory database not found. Initializing schema:", db_path)
+        generate_data.generate(db_path=str(db_path))
 
-    # Make a separate backup before modifying the database.
-    backup_path = DB_PATH.with_name("citymemory_pre_bbmp_import.db")
-
-    if not backup_path.exists():
-        shutil.copy2(DB_PATH, backup_path)
-        print("Database backup created:", backup_path)
+    # Make a separate backup before modifying the database if possible.
+    try:
+        backup_path = db_path.with_name("citymemory_pre_bbmp_import.db")
+        if not backup_path.exists() and db_path.exists():
+            shutil.copy2(db_path, backup_path)
+            print("Database backup created:", backup_path)
+    except Exception as e:
+        print(f"Notice: Pre-import backup skipped: {e}")
 
     inserted = 0
     skipped = 0
     total = 0
 
-    with CSV_PATH.open(
+    with csv_path.open(
         "r",
         encoding="utf-8-sig",
         errors="replace",
@@ -101,7 +138,7 @@ def import_work_orders():
             print("Found:", reader.fieldnames)
             return
 
-        with sqlite3.connect(DB_PATH) as connection:
+        with sqlite3.connect(db_path) as connection:
 
             create_table(connection)
 
@@ -194,8 +231,9 @@ def import_work_orders():
     print("New records inserted:", inserted)
     print("Records skipped:", skipped)
     print("Total BBMP work orders in database:", total_in_database)
-    print("Database:", DB_PATH)
+    print("Database:", db_path)
     print("Completed at:", datetime.now().strftime("%d-%m-%Y %H:%M:%S"))
+
 
 if __name__ == "__main__":
     import_work_orders()

@@ -8,10 +8,41 @@ export plugs into the same `complaints` table.
 import math
 import os
 import random
+import shutil
 import sqlite3
+import tempfile
 from datetime import date, timedelta
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "citymemory.db")
+
+def get_db_path():
+    """Return the database path, respecting environment variables and serverless environments."""
+    if os.environ.get("CITYMEMORY_DB_PATH"):
+        return os.environ.get("CITYMEMORY_DB_PATH")
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    local_path = os.path.join(base_dir, "citymemory.db")
+
+    is_serverless = bool(
+        os.environ.get("VERCEL")
+        or os.environ.get("VERCEL_ENV")
+        or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+    )
+
+    # In serverless environments (e.g. Vercel), /var/task is read-only.
+    # We must use /tmp for SQLite database read/write operations.
+    if is_serverless or not os.access(base_dir, os.W_OK):
+        tmp_db = os.path.join(tempfile.gettempdir(), "citymemory.db")
+        if os.path.exists(local_path) and not os.path.exists(tmp_db):
+            try:
+                shutil.copy2(local_path, tmp_db)
+            except Exception as e:
+                print(f"Warning: Could not copy bundled database to /tmp: {e}")
+        return tmp_db
+
+    return local_path
+
+
+DB_PATH = get_db_path()
 
 SPOTS = {
     "Silk Board Junction": (12.9172, 77.6228),
@@ -124,18 +155,40 @@ def _dates_for(rng, chronic):
     return sorted(START + timedelta(days=rng.randint(0, (END - START).days)) for _ in range(n))
 
 
-def generate(db_path=DB_PATH, seed=42):
+def generate(db_path=None, seed=42):
+    if db_path is None:
+        db_path = get_db_path()
     rng = random.Random(seed)
     if os.path.exists(db_path):
         os.remove(db_path)
+    os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
     con = sqlite3.connect(db_path)
     con.execute(
-        """CREATE TABLE complaints (
+        """CREATE TABLE IF NOT EXISTS complaints (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             category TEXT, text TEXT, lat REAL, lon REAL,
             reported_on TEXT, severity INTEGER, status TEXT,
             repair_action TEXT, repair_cost INTEGER, repaired_on TEXT,
-            photo_path TEXT)"""
+            photo_path TEXT, reference_id TEXT)"""
+    )
+    con.execute(
+        """CREATE INDEX IF NOT EXISTS idx_complaints_reference_id
+        ON complaints (reference_id)"""
+    )
+    con.execute(
+        """CREATE TABLE IF NOT EXISTS bbmp_work_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_dataset TEXT NOT NULL,
+            source_resource_id TEXT NOT NULL,
+            source_record_key TEXT NOT NULL UNIQUE,
+            work_order_id TEXT,
+            ward TEXT,
+            work_description TEXT,
+            bill_reference TEXT,
+            amount REAL,
+            net_amount REAL,
+            deduction REAL,
+            imported_at TEXT DEFAULT CURRENT_TIMESTAMP)"""
     )
     assets = _place_assets(rng, 85)
     chronic_idx = set(rng.sample(range(len(assets)), 15))
@@ -163,16 +216,18 @@ def generate(db_path=DB_PATH, seed=42):
                 rep = (d + timedelta(days=rng.randint(3, 14))).isoformat()
             rows.append((a["cat"], text, lat, lon, d.isoformat(), sev, status, action, cost, rep))
     rows.sort(key=lambda r: r[4])
-    con.executemany(
-        """INSERT INTO complaints
-        (category,text,lat,lon,reported_on,severity,status,repair_action,repair_cost,repaired_on)
-        VALUES (?,?,?,?,?,?,?,?,?,?)""",
-        rows,
-    )
+    for idx, r in enumerate(rows, start=1):
+        ref_id = f"CM-{idx:06d}"
+        con.execute(
+            """INSERT INTO complaints
+            (category,text,lat,lon,reported_on,severity,status,repair_action,repair_cost,repaired_on,reference_id)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (*r, ref_id),
+        )
     con.commit()
     con.close()
     return len(rows)
 
 
 if __name__ == "__main__":
-    print("Generated", generate(), "complaints ->", DB_PATH)
+    print("Generated", generate(), "complaints ->", get_db_path())

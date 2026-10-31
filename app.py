@@ -50,12 +50,30 @@ app.config.update(
     MAX_CONTENT_LENGTH=6 * 1024 * 1024
 )
 
-DB = generate_data.DB_PATH
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
+def _get_upload_folder():
+    custom = os.environ.get("CITYMEMORY_UPLOAD_FOLDER")
+    if custom:
+        return custom
+
+    local_upload = os.path.join(BASE_DIR, "private_uploads")
+    is_serverless = bool(
+        os.environ.get("VERCEL")
+        or os.environ.get("VERCEL_ENV")
+        or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+    )
+
+    if is_serverless or not os.access(BASE_DIR, os.W_OK):
+        import tempfile
+        return os.path.join(tempfile.gettempdir(), "private_uploads")
+
+    return local_upload
+
+
 # Photos are stored outside the public static folder.
-UPLOAD_FOLDER = os.path.join(BASE_DIR, "private_uploads")
+UPLOAD_FOLDER = _get_upload_folder()
 
 LEGACY_UPLOAD_FOLDER = os.path.join(
     BASE_DIR, "static", "uploads"
@@ -64,12 +82,19 @@ LEGACY_UPLOAD_FOLDER = os.path.join(
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png"}
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+try:
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+except OSError:
+    pass
 
+DB = generate_data.get_db_path()
 
 if not os.path.exists(DB):
-    print("Seeding simulated data...")
-    generate_data.generate()
+    print(f"Seeding simulated data to {DB}...")
+    try:
+        generate_data.generate(db_path=DB)
+    except Exception as _e:
+        print(f"Warning: Database seeding failed: {_e}")
 
 
 # ---------------------------------------------------------------------------
@@ -77,52 +102,59 @@ if not os.path.exists(DB):
 # ---------------------------------------------------------------------------
 
 def _migrate_db():
-    con = sqlite3.connect(DB)
+    if not os.path.exists(DB):
+        return
 
     try:
-        cols = {
-            row[1]
-            for row in con.execute(
-                "PRAGMA table_info(complaints)"
-            )
-        }
+        con = sqlite3.connect(DB)
+        try:
+            cols = {
+                row[1]
+                for row in con.execute(
+                    "PRAGMA table_info(complaints)"
+                )
+            }
 
-        if "photo_path" not in cols:
-            con.execute(
-                "ALTER TABLE complaints ADD COLUMN photo_path TEXT"
-            )
-            print("Migration: added photo_path column.")
+            if not cols:
+                return
 
-        if "reference_id" not in cols:
-            con.execute(
-                "ALTER TABLE complaints ADD COLUMN reference_id TEXT"
-            )
-            print("Migration: added reference_id column.")
+            if "photo_path" not in cols:
+                con.execute(
+                    "ALTER TABLE complaints ADD COLUMN photo_path TEXT"
+                )
+                print("Migration: added photo_path column.")
 
-        # Give all previous complaints a reference ID too.
-        rows = con.execute("""
-            SELECT id
-            FROM complaints
-            WHERE reference_id IS NULL OR reference_id = ''
-        """).fetchall()
+            if "reference_id" not in cols:
+                con.execute(
+                    "ALTER TABLE complaints ADD COLUMN reference_id TEXT"
+                )
+                print("Migration: added reference_id column.")
 
-        for row in rows:
-            complaint_id = int(row[0])
-            reference_id = f"CM-{complaint_id:06d}"
+            # Give all previous complaints a reference ID too.
+            rows = con.execute("""
+                SELECT id
+                FROM complaints
+                WHERE reference_id IS NULL OR reference_id = ''
+            """).fetchall()
 
-            con.execute(
-                """
-                UPDATE complaints
-                SET reference_id = ?
-                WHERE id = ?
-                """,
-                (reference_id, complaint_id)
-            )
+            for row in rows:
+                complaint_id = int(row[0])
+                reference_id = f"CM-{complaint_id:06d}"
 
-        con.commit()
+                con.execute(
+                    """
+                    UPDATE complaints
+                    SET reference_id = ?
+                    WHERE id = ?
+                    """,
+                    (reference_id, complaint_id)
+                )
 
-    finally:
-        con.close()
+            con.commit()
+        finally:
+            con.close()
+    except Exception as _e:
+        print(f"Notice: Database migration check skipped: {_e}")
 
 
 def _migrate_private_uploads():
@@ -131,69 +163,73 @@ def _migrate_private_uploads():
     Update database paths to protected admin photo URLs.
     """
 
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    try:
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    except OSError:
+        pass
 
     if os.path.isdir(LEGACY_UPLOAD_FOLDER):
-
-        for filename in os.listdir(LEGACY_UPLOAD_FOLDER):
-
-            source = os.path.join(
-                LEGACY_UPLOAD_FOLDER, filename
-            )
-
-            destination = os.path.join(
-                UPLOAD_FOLDER, filename
-            )
-
-            if os.path.isfile(source):
-
-                if not os.path.exists(destination):
-                    shutil.move(source, destination)
-                else:
-                    os.remove(source)
-
         try:
-            os.rmdir(LEGACY_UPLOAD_FOLDER)
+            for filename in os.listdir(LEGACY_UPLOAD_FOLDER):
+                source = os.path.join(
+                    LEGACY_UPLOAD_FOLDER, filename
+                )
+                destination = os.path.join(
+                    UPLOAD_FOLDER, filename
+                )
+
+                if os.path.isfile(source):
+                    if not os.path.exists(destination):
+                        shutil.move(source, destination)
+                    else:
+                        os.remove(source)
+
+            try:
+                os.rmdir(LEGACY_UPLOAD_FOLDER)
+            except OSError:
+                pass
         except OSError:
             pass
 
-    con = sqlite3.connect(DB)
+    if not os.path.exists(DB):
+        return
 
     try:
-        rows = con.execute("""
-            SELECT id, photo_path
-            FROM complaints
-            WHERE photo_path LIKE '/static/uploads/%'
-        """).fetchall()
+        con = sqlite3.connect(DB)
+        try:
+            rows = con.execute("""
+                SELECT id, photo_path
+                FROM complaints
+                WHERE photo_path LIKE '/static/uploads/%'
+            """).fetchall()
 
-        for complaint_id, old_path in rows:
+            for complaint_id, old_path in rows:
+                filename = os.path.basename(old_path)
 
-            filename = os.path.basename(old_path)
+                if not filename:
+                    continue
 
-            if not filename:
-                continue
-
-            private_path = os.path.join(
-                UPLOAD_FOLDER, filename
-            )
-
-            if os.path.isfile(private_path):
-
-                new_path = f"/admin/photo/{filename}"
-
-                con.execute(
-                    """
-                    UPDATE complaints
-                    SET photo_path = ?
-                    WHERE id = ?
-                    """,
-                    (new_path, complaint_id)
+                private_path = os.path.join(
+                    UPLOAD_FOLDER, filename
                 )
 
-        con.commit()
+                if os.path.isfile(private_path):
+                    new_path = f"/admin/photo/{filename}"
 
-    finally:
-        con.close()
+                    con.execute(
+                        """
+                        UPDATE complaints
+                        SET photo_path = ?
+                        WHERE id = ?
+                        """,
+                        (new_path, complaint_id)
+                    )
+
+            con.commit()
+        finally:
+            con.close()
+    except Exception as _e:
+        print(f"Notice: Upload migration skipped: {_e}")
 
 
 _migrate_db()
@@ -255,11 +291,23 @@ def _find_bbmp_work_orders(asset, limit=10):
     Find potential BBMP work-order matches for an inferred asset.
     These are suggestions, not verified maintenance links.
     """
+    if not os.path.exists(DB):
+        return []
 
     con = sqlite3.connect(DB)
     con.row_factory = sqlite3.Row
 
     try:
+        table_exists = con.execute("""
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table'
+            AND name = 'bbmp_work_orders'
+        """).fetchone()
+
+        if not table_exists:
+            return []
+
         rows = con.execute("""
             SELECT
                 work_order_id,
@@ -334,6 +382,8 @@ def _allowed_file(filename):
 
 
 def _bbmp_workorder_count():
+    if not os.path.exists(DB):
+        return 0
 
     con = sqlite3.connect(DB)
 
@@ -480,11 +530,23 @@ def admin_logout():
 @app.route("/admin/photo/<path:filename>")
 @admin_required
 def uploaded_file(filename):
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    if os.path.isfile(file_path):
+        return send_from_directory(
+            UPLOAD_FOLDER,
+            filename
+        )
 
-    return send_from_directory(
-        UPLOAD_FOLDER,
-        filename
-    )
+    fallback_dir = os.path.join(BASE_DIR, "private_uploads")
+    if os.path.isfile(os.path.join(fallback_dir, filename)):
+        return send_from_directory(
+            fallback_dir,
+            filename
+        )
+
+    return jsonify({
+        "error": "Photo not found or expired from ephemeral storage."
+    }), 404
 
 
 # ---------------------------------------------------------------------------
@@ -585,11 +647,23 @@ def api_asset(asset_id):
 @app.route("/api/reports")
 @admin_required
 def api_reports():
+    if not os.path.exists(DB):
+        return jsonify([])
 
     con = sqlite3.connect(DB)
     con.row_factory = sqlite3.Row
 
     try:
+        table_exists = con.execute("""
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table'
+            AND name = 'complaints'
+        """).fetchone()
+
+        if not table_exists:
+            return jsonify([])
+
         rows = con.execute("""
             SELECT
                 id,
@@ -863,15 +937,19 @@ def api_reset():
         }), 409
 
     try:
-        n = generate_data.generate()
+        n = generate_data.generate(db_path=DB)
 
         _migrate_db()
 
-        for filename in os.listdir(UPLOAD_FOLDER):
-            path = os.path.join(UPLOAD_FOLDER, filename)
+        if os.path.exists(UPLOAD_FOLDER):
+            for filename in os.listdir(UPLOAD_FOLDER):
+                path = os.path.join(UPLOAD_FOLDER, filename)
 
-            if os.path.isfile(path):
-                os.remove(path)
+                if os.path.isfile(path):
+                    try:
+                        os.remove(path)
+                    except OSError:
+                        pass
 
         return jsonify({
             "message": f"Reset with {n} simulated complaints."

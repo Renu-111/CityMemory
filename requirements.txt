@@ -1,4 +1,5 @@
 flask
+requests
 numpy
 scikit-learn
 # Optional: real semantic embeddings (large download, installs PyTorch).

@@ -1,6 +1,7 @@
-
 import csv
+import os
 import sqlite3
+import tempfile
 from pathlib import Path
 
 import requests
@@ -8,7 +9,13 @@ import generate_data
 from import_workorders import import_work_orders
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = Path(generate_data.DB_PATH)
+
+
+def get_db_path():
+    return Path(generate_data.get_db_path())
+
+
+DB_PATH = get_db_path()
 
 API_URL = "https://data.opencity.in/api/3/action/package_show"
 
@@ -16,7 +23,24 @@ PACKAGE_ID = "280a1196-074e-43ac-acd9-914918b429f5"
 
 RESOURCE_ID = "6c2e5dfa-845c-440d-808c-3ed45b083059"
 
-CSV_PATH = BASE_DIR / "data" / "raw" / "bbmp_2025_26_243_wards.csv"
+
+def get_csv_path():
+    custom = os.environ.get("BBMP_CSV_PATH")
+    if custom:
+        return Path(custom)
+    default_csv = BASE_DIR / "data" / "raw" / "bbmp_2025_26_243_wards.csv"
+    is_serverless = bool(
+        os.environ.get("VERCEL")
+        or os.environ.get("VERCEL_ENV")
+        or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+    )
+    if is_serverless or not os.access(str(BASE_DIR), os.W_OK):
+        tmp_dir = Path(tempfile.gettempdir()) / "citymemory_data"
+        return tmp_dir / "bbmp_2025_26_243_wards.csv"
+    return default_csv
+
+
+CSV_PATH = get_csv_path()
 
 REQUIRED_COLUMNS = {
     "id", "ward", "wodetails",
@@ -25,7 +49,15 @@ REQUIRED_COLUMNS = {
 
 
 def get_existing_count():
-    with sqlite3.connect(DB_PATH) as con:
+    db_path = get_db_path()
+    if not db_path.exists():
+        return 0
+    with sqlite3.connect(db_path) as con:
+        table_exists = con.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='bbmp_work_orders'"
+        ).fetchone()
+        if not table_exists:
+            return 0
         result = con.execute(
             "SELECT COUNT(*) FROM bbmp_work_orders"
         ).fetchone()
@@ -72,9 +104,10 @@ def sync_workorders():
     download.raise_for_status()
 
     # 3. Validate the CSV before replacing the existing file.
-    CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
+    target_csv = get_csv_path()
+    target_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    temp_path = CSV_PATH.with_name(CSV_PATH.name + ".tmp")
+    temp_path = target_csv.with_name(target_csv.name + ".tmp")
     temp_path.write_bytes(download.content)
 
     try:
@@ -101,7 +134,7 @@ def sync_workorders():
                 raise ValueError("Downloaded CSV contains no records.")
 
         # Replace old CSV only after validation succeeds.
-        temp_path.replace(CSV_PATH)
+        temp_path.replace(target_csv)
 
     finally:
         if temp_path.exists():
@@ -112,7 +145,7 @@ def sync_workorders():
     # 4. Import into the separate BBMP table.
     before = get_existing_count()
 
-    import_work_orders()
+    import_work_orders(csv_path=target_csv, db_path=get_db_path())
 
     after = get_existing_count()
 
